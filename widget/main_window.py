@@ -3,12 +3,14 @@ import openpyxl as op
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QDialog,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow, 
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget
@@ -85,10 +87,13 @@ class MainWindow(QMainWindow):
             options
         )
         self.select_dir_edit.setText(fileNames)
-        print(fileNames)
+        # print(fileNames)
 
     def exe_button_click(self):
         print("exe_button_click")
+        if error_message := self.validator():
+            self.show_error_dialog(error_message) 
+            return
         # self.work_book = op.load_workbook("test.xlsx")
         # active_sheet = self.work_book.active
         # print(active_sheet.cell(column=1, row=1).value)
@@ -96,3 +101,16 @@ class MainWindow(QMainWindow):
 
         # top_widget = QWidget()
         # top_widget_layout = QVBoxLayout(top_widget)
+
+    def validator(self):
+        if not self.select_dir_edit.text():
+            return "ディレクトリパスが入力されていません"
+    
+    def show_error_dialog(self, message):
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("入力エラー")
+        msg_box.setText(message)
+        # msg_box.setInformativeText(message)
+        msg_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg_box.exec()
