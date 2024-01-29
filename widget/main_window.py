@@ -1,6 +1,8 @@
 
 import openpyxl as op
+import re
 
+from PySide6.QtGui import QRegularExpressionValidator
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -19,8 +21,12 @@ from PySide6.QtWidgets import (
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.reg_cell_addr = r"^[A-Z][A-Z1-9]*[1-9]$"
         self.setWindowTitle("Super simple sheet updater")
         self.resize(350, 200)
+        self.set_widget()
+
+    def set_widget(self):
         # 画面レイアウトは以下のサイトを参考に作成
         # https://stackoverflow.com/questions/12007807/create-qt-layout-with-fixed-height
         base_layout = QVBoxLayout()
@@ -36,16 +42,18 @@ class MainWindow(QMainWindow):
         select_layout.addWidget(reference_button)
 
         cell_address_label = QLabel("更新するセル番地を入力してください。")
-        cell_address_edit = QLineEdit()
-        cell_address_edit.setText("")
-        cell_address_edit.setFixedWidth(40)
-        cell_address_edit.setPlaceholderText("A1")
+        self.cell_address_edit = QLineEdit()
+        self.cell_address_edit.setText("")
+        self.cell_address_edit.setFixedWidth(40)
+        self.cell_address_edit.setPlaceholderText("A1")
         # 英数字で大文字に自動変換
-        cell_address_edit.setInputMask(">NNNNN")
+        # cell_address_edit.setInputMask(">NNNNN")
+        cell_addr_validator = QRegularExpressionValidator(self.reg_cell_addr)
+        self.cell_address_edit.setValidator(cell_addr_validator)
 
         update_value_label = QLabel("更新する値を入力してください。")
-        update_value_edit = QLineEdit()
-        update_value_edit.setText("")
+        self.update_value_edit = QLineEdit()
+        self.update_value_edit.setText("")
 
         exe_button = QPushButton("実行")
         exe_button.setFixedWidth(50)
@@ -59,9 +67,9 @@ class MainWindow(QMainWindow):
         base_layout.addWidget(select_dir_label)
         base_layout.addLayout(select_layout)
         base_layout.addWidget(cell_address_label)
-        base_layout.addWidget(cell_address_edit)
+        base_layout.addWidget(self.cell_address_edit)
         base_layout.addWidget(update_value_label)
-        base_layout.addWidget(update_value_edit)
+        base_layout.addWidget(self.update_value_edit)
         base_layout.addLayout(exe_layout)
         # addStretchを入れることで空白分を埋めるというか伸ばす
         base_layout.addStretch(1)
@@ -104,7 +112,17 @@ class MainWindow(QMainWindow):
 
     def validator(self):
         if not self.select_dir_edit.text():
-            return "ディレクトリパスが入力されていません"
+            return "ディレクトリパスが入力されていません。"
+
+        cell_address_value = self.cell_address_edit.text()
+        if not cell_address_value:
+            return "セル番号が入力されていません。"
+        
+        if not re.search(self.reg_cell_addr, cell_address_value):
+            return "入力されたセル番号が正しくありません。"
+
+        if not self.update_value_edit.text():
+            return "更新する値が入力されていません。"
     
     def show_error_dialog(self, message):
         msg_box = QMessageBox()
