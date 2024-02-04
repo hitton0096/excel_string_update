@@ -1,7 +1,11 @@
 
+import glob
 import openpyxl as op
+import os
 import re
+import shutil
 
+from datetime import datetime
 from PySide6.QtGui import QRegularExpressionValidator
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -33,6 +37,7 @@ class MainWindow(QMainWindow):
         select_dir_label = QLabel("更新するファイルが入っているディレクトリを選択してください。")
 
         self.select_dir_edit = QLineEdit()
+        self.select_dir_edit.setPlaceholderText("C:\\Users\\user_name\\Documents")
         self.select_dir_edit.setReadOnly(True)
         reference_button = QPushButton("参照")
         reference_button.clicked.connect(self.reference_button_click)
@@ -40,6 +45,11 @@ class MainWindow(QMainWindow):
         select_layout = QHBoxLayout()
         select_layout.addWidget(self.select_dir_edit)
         select_layout.addWidget(reference_button)
+
+        sheet_name_label = QLabel("更新対象のシート名を入力してください。")
+        self.sheet_name_edit = QLineEdit()
+        self.sheet_name_edit.setText("")
+        self.sheet_name_edit.setPlaceholderText("シート名")
 
         cell_address_label = QLabel("更新するセル番地を入力してください。")
         self.cell_address_edit = QLineEdit()
@@ -66,6 +76,8 @@ class MainWindow(QMainWindow):
 
         base_layout.addWidget(select_dir_label)
         base_layout.addLayout(select_layout)
+        base_layout.addWidget(sheet_name_label)
+        base_layout.addWidget(self.sheet_name_edit)
         base_layout.addWidget(cell_address_label)
         base_layout.addWidget(self.cell_address_edit)
         base_layout.addWidget(update_value_label)
@@ -95,24 +107,49 @@ class MainWindow(QMainWindow):
             options
         )
         self.select_dir_edit.setText(fileNames)
-        # print(fileNames)
 
     def exe_button_click(self):
-        print("exe_button_click")
         if error_message := self.validator():
-            self.show_error_dialog(error_message) 
+            self.show_msg_dialog(error_message) 
             return
-        # self.work_book = op.load_workbook("test.xlsx")
-        # active_sheet = self.work_book.active
-        # print(active_sheet.cell(column=1, row=1).value)
-        # print(active_sheet['A1'].value)
+        try:
+            self.update_file()
+        except PermissionError as pe:
+            self.show_msg_dialog("更新ファイルを開いている可能性がありますので閉じてから再度実行してください。")
+    
+    def update_file(self):
+        select_dir_value = self.select_dir_edit.text()
+        for file in glob.glob(select_dir_value + "/*.xlsx"):
+            # back_で始まるバックアップファイル名を対象外
+            if re.search(r"^back_[0-9]{14}_.*\.xlsx$", os.path.basename(file)):
+                continue
 
-        # top_widget = QWidget()
-        # top_widget_layout = QVBoxLayout(top_widget)
+            work_book = op.load_workbook(file)
+            input_sheet_name = self.sheet_name_edit.text()
+            if not input_sheet_name in work_book.sheetnames:
+                self.show_msg_dialog(f"{file}\n入力されたシート名の{input_sheet_name}が見つかりません。\n処理を終了します。") 
+                return
+            # バックアップファイル名作成
+            date_s = datetime.now().strftime("%Y%m%d%H%M%S")
+            back_up_file_name = "back_" + date_s + "_" + os.path.basename(file)
+            shutil.copy(file, select_dir_value + "/" + back_up_file_name)
+            work_sheet = work_book[input_sheet_name]
+            cell_address = self.cell_address_edit.text()
+            print(work_sheet[cell_address].value)
+            work_sheet[cell_address].value = self.update_value_edit.text()
+            print(work_sheet[cell_address].value)
+            work_book.save(file)
+        self.show_msg_dialog(f"処理が終了しました。", "info") 
 
     def validator(self):
-        if not self.select_dir_edit.text():
+        select_dir_value = self.select_dir_edit.text()
+        if not select_dir_value:
             return "ディレクトリパスが入力されていません。"
+        if not os.path.isdir(select_dir_value):
+            return f"選択された{select_dir_value}のディレクトリは存在しません。"
+
+        if not self.sheet_name_edit.text():
+            return "シート名が入力されていません。"
 
         cell_address_value = self.cell_address_edit.text()
         if not cell_address_value:
@@ -124,11 +161,16 @@ class MainWindow(QMainWindow):
         if not self.update_value_edit.text():
             return "更新する値が入力されていません。"
     
-    def show_error_dialog(self, message):
+    def show_msg_dialog(self, message, msg_type="error"):
         msg_box = QMessageBox()
-        msg_box.setIcon(QMessageBox.Icon.Warning)
-        msg_box.setWindowTitle("入力エラー")
+        if msg_type == "error":
+            msg_box.setIcon(QMessageBox.Icon.Warning)
+            msg_box.setWindowTitle("入力エラー")
+        if msg_type == "info":
+            msg_box.setIcon(QMessageBox.Icon.Information)
+            msg_box.setWindowTitle("情報")
         msg_box.setText(message)
+        msg_box.setStandardButtons(QMessageBox.Ok)
         # msg_box.setInformativeText(message)
-        msg_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        # msg_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         msg_box.exec()
